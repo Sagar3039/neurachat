@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  # ── Ollama LLM server ───────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neurachat-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_NUM_GPU=1  # If you have GPU
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # Pull llama3 on first start
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull llama3 &&
+             wait"
+
+  # ── Backend API ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: neurachat-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3
+      - FRONTEND_URL=http://localhost:5173
+      # Set these or mount serviceAccountKey.json:
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+    volumes:
+      # Optional: mount service account key file
+      - ./firebase/serviceAccountKey.json:/app/firebase/serviceAccountKey.json:ro
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: neurachat-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

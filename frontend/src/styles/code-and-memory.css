@@ -1,0 +1,225 @@
+/* ══════════════════════════════════════════════════════════════
+   PATCH: Append to bottom of frontend/src/styles/index.css
+   (replaces the previous code-and-memory.css additions)
+══════════════════════════════════════════════════════════════ */
+
+/* Hide old code block styles */
+.message__code-block { display: none !important; }
+
+/* ── Code block container ── */
+.code-block {
+  background: #0d0d10;
+  border: 1px solid #2a2a38;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 10px 0;
+  font-size: 13px;
+  width: 100%;
+}
+
+/* ── Header: language label LEFT, copy button RIGHT ── */
+.code-block__header {
+  display: flex;
+  flex-direction: row;          /* explicit row */
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #161620;
+  border-bottom: 1px solid #2a2a38;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.code-block__lang {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #7c6af7;
+  letter-spacing: 0.4px;
+  text-transform: lowercase;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.code-block__streaming-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  animation: pulse 1.2s ease infinite;
+}
+
+/* ── Copy button — always on its own, no wrapping ── */
+.code-block__copy {
+  display: inline-flex;        /* inline-flex prevents block wrapping */
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  color: #888;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;           /* push to far right */
+  line-height: 1;
+  height: 24px;
+}
+
+.code-block__copy:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border-color: rgba(255,255,255,0.18);
+}
+
+.code-block__copy--copied {
+  color: #4ade80 !important;
+  border-color: rgba(74,222,128,0.3) !important;
+  background: rgba(74,222,128,0.08) !important;
+}
+
+.code-block__copy svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.code-block__copy span {
+  line-height: 1;
+}
+
+/* ── Code body ── */
+.code-block__body {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.code-block__body pre {
+  padding: 14px 16px;
+  margin: 0;
+  overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.code-block__body code,
+.code-block__code {
+  font-family: 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #c9d1d9;
+  white-space: pre;
+  display: block;
+}
+
+/* ── Message layout helpers ── */
+.message__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.message__spacer { height: 6px; }
+
+.message__heading {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 8px 0 4px;
+}
+
+.message__heading--2 {
+  font-size: 15px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
+}
+
+.message__heading--3 {
+  font-size: 14px;
+  color: var(--accent-bright);
+}
+
+.message__list-item {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.message__list-bullet {
+  color: var(--accent);
+  font-size: 10px;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.message__list-num {
+  color: var(--accent-bright);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  flex-shrink: 0;
+  min-width: 20px;
+  margin-top: 2px;
+}
+
+/* ── Memory command UI ── */
+.chat-input__memory-status {
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  animation: fadeUp 0.2s ease;
+}
+
+.chat-input__memory-status--success {
+  background: rgba(74,222,128,0.1);
+  border: 1px solid rgba(74,222,128,0.25);
+  color: #4ade80;
+}
+
+.chat-input__memory-status--error {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.2);
+  color: #f87171;
+}
+
+.chat-input__memory-hint {
+  margin-bottom: 6px;
+  padding: 6px 12px;
+  background: rgba(124,106,247,0.08);
+  border: 1px solid rgba(124,106,247,0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  animation: fadeUp 0.15s ease;
+}
+
+.chat-input__memory-hint code,
+.chat-input__hint code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--accent-bright);
+}
+
+.chat-input__send--memory {
+  background: rgba(74,222,128,0.12);
+  border: 1px solid rgba(74,222,128,0.25);
+  color: #4ade80 !important;
+}
+
+.chat-input__send--memory:hover:not(:disabled) {
+  background: rgba(74,222,128,0.2);
+  box-shadow: 0 0 10px rgba(74,222,128,0.15);
+  transform: scale(1.05);
+}

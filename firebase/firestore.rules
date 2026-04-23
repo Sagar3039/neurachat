@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Chats ─────────────────────────────────────────────────
+    match /chats/{chatId} {
+
+      function isOwner() {
+        return request.auth != null
+          && resource.data.userId == request.auth.uid;
+      }
+
+      function isValidCreate() {
+        return request.auth != null
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 200
+          && request.resource.data.createdAt != null;
+      }
+
+      function isValidUpdate() {
+        return isOwner()
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 200;
+      }
+
+      allow read:   if isOwner();
+      allow create: if isValidCreate();
+      allow update: if isValidUpdate();
+      allow delete: if isOwner();
+
+      // ── Messages subcollection ───────────────────────────────
+      match /messages/{messageId} {
+
+        function parentIsOwned() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/chats/$(chatId)).data.userId
+               == request.auth.uid;
+        }
+
+        function isValidMessage() {
+          return parentIsOwned()
+            && request.resource.data.role in ['user', 'assistant']
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 100000
+            && request.resource.data.createdAt != null;
+        }
+
+        allow read:   if parentIsOwned();
+        allow create: if isValidMessage();
+        allow update: if false;  // Messages are immutable once written
+        allow delete: if parentIsOwned();
+      }
+    }
+
+    // ── Memories ─────────────────────────────────────────────
+    // Structured per-user key/value memory entries.
+    // Schema: { userId, key, value, createdAt, updatedAt }
+    match /memories/{memoryId} {
+
+      function isMemoryOwner() {
+        return request.auth != null
+          && resource.data.userId == request.auth.uid;
+      }
+
+      function isValidMemoryCreate() {
+        return request.auth != null
+          // userId must match the authenticated user — never trust client
+          && request.resource.data.userId == request.auth.uid
+          // key: non-empty string, max 64 chars
+          && request.resource.data.key is string
+          && request.resource.data.key.size() > 0
+          && request.resource.data.key.size() <= 64
+          // value: non-empty string, max 500 chars
+          && request.resource.data.value is string
+          && request.resource.data.value.size() > 0
+          && request.resource.data.value.size() <= 500
+          && request.resource.data.createdAt != null;
+      }
+
+      function isValidMemoryUpdate() {
+        return isMemoryOwner()
+          // userId is immutable — cannot be changed
+          && request.resource.data.userId == resource.data.userId
+          // key is immutable — upsert creates new doc or updates value only
+          && request.resource.data.key == resource.data.key
+          && request.resource.data.value is string
+          && request.resource.data.value.size() > 0
+          && request.resource.data.value.size() <= 500;
+      }
+
+      allow read:   if isMemoryOwner();
+      allow create: if isValidMemoryCreate();
+      allow update: if isValidMemoryUpdate();
+      allow delete: if isMemoryOwner();
+    }
+
+    // ── Block all other collections ──────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
