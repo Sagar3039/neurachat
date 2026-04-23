@@ -18,7 +18,8 @@ export function MessageBubble({ message, isNew }) {
       </div>
       <div className="message__content">
         <div className="message__bubble">
-          <MessageText text={message.text} />
+          {/* ── NEW: route to the correct renderer based on result type ── */}
+          <MessageContent message={message} />
         </div>
         {message.timestamp && (
           <span className="message__time">{message.timestamp}</span>
@@ -46,6 +47,145 @@ export function StreamingBubble({ text }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── NEW: MessageContent — dispatches to the right renderer ──────────────────
+// Checks message.result.type for image/code/voice, falls back to text.
+// This is the ONLY change to rendering logic — everything else is untouched.
+function MessageContent({ message }) {
+  const result = message.result;
+
+  if (result?.type === 'image') {
+    return <ImageMessage image={result.image} meta={result.meta} />;
+  }
+
+  if (result?.type === 'code') {
+    return <CodeMessage code={result.code} meta={result.meta} />;
+  }
+
+  if (result?.type === 'voice') {
+    return <VoiceMessage text={message.text} />;
+  }
+
+  // Default: existing text rendering (unchanged)
+  return <MessageText text={message.text} />;
+}
+
+// ── NEW: Image renderer ──────────────────────────────────────────────────────
+function ImageMessage({ image, meta }) {
+  if (!image) {
+    return <p className="message__paragraph">Image generation failed.</p>;
+  }
+
+  const src = `data:image/png;base64,${image}`;
+
+  return (
+    <div className="message__image-result">
+      <img
+        src={src}
+        alt="AI-generated image"
+        className="message__generated-image"
+        style={{
+          maxWidth: '100%',
+          borderRadius: '8px',
+          display: 'block',
+          marginTop: '8px',
+        }}
+      />
+      {meta && (
+        <span className="message__meta" style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>
+          {meta.model} · {meta.latency}ms
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── NEW: Code result renderer ────────────────────────────────────────────────
+// Uses the existing CodeBlock component — no duplication.
+function CodeMessage({ code, meta }) {
+  if (!code) {
+    return <p className="message__paragraph">Code generation failed.</p>;
+  }
+
+  // Extract language from opening fence if present, then strip fences
+  const fenceMatch = code.match(/^```(\w*)\n?([\s\S]*?)```$/);
+  const lang = fenceMatch?.[1] || 'code';
+  const cleanCode = fenceMatch?.[2] ?? code;
+
+  return (
+    <div>
+      <CodeBlock lang={lang} code={cleanCode.trim()} />
+      {meta && (
+        <span className="message__meta" style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>
+          {meta.model} · {meta.latency}ms
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── NEW: Voice renderer ──────────────────────────────────────────────────────
+// Uses browser SpeechSynthesis API — no external dependency.
+function VoiceMessage({ text }) {
+  const [speaking, setSpeaking] = useState(false);
+
+  const handleSpeak = useCallback(() => {
+    if (!window.speechSynthesis) return;
+
+    // Cancel any ongoing speech first
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  }, [text]);
+
+  const handleStop = useCallback(() => {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+  }, []);
+
+  return (
+    <div>
+      <MessageText text={text} />
+      <button
+        className="voice-play-btn"
+        onClick={speaking ? handleStop : handleSpeak}
+        type="button"
+        style={{
+          marginTop: '8px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 12px',
+          borderRadius: '6px',
+          border: '1px solid rgba(255,255,255,0.15)',
+          background: 'rgba(255,255,255,0.06)',
+          color: 'inherit',
+          cursor: 'pointer',
+          fontSize: '13px',
+        }}
+        title={speaking ? 'Stop speaking' : 'Read aloud'}
+      >
+        {speaking ? (
+          // Stop icon
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+          </svg>
+        ) : (
+          // Play icon
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5,3 19,12 5,21" />
+          </svg>
+        )}
+        <span>{speaking ? 'Stop' : 'Play'}</span>
+      </button>
     </div>
   );
 }

@@ -107,14 +107,31 @@ export function useMessages(chatId, uid) {
         accumulated += token;
         setStreamingText(accumulated);
       },
-      onDone: async ({ elapsed, aborted }) => {
+      onDone: async ({ elapsed, aborted, result }) => {
         setIsStreaming(false);
         setStreamingText('');
         if (!aborted) {
           setResponseTime(elapsed);
         }
 
-        // Save assistant message
+        // ── NEW: structured result (image/code) from multiModel routes ──
+        // result = { type: "image", image: "...", meta: {...} }
+        //        | { type: "code",  code:  "...", meta: {...} }
+        // We save it as an assistant message with a special `result` field
+        // that MessageBubble.jsx reads for custom rendering.
+        if (result) {
+          const assistantMsg = await saveMessage(chatId, {
+            role: 'assistant',
+            text: result.type === 'image'
+              ? '[Image generated]'
+              : result.code ?? '[Code generated]',
+            result, // carry the full structured result for rendering
+          });
+          setMessagesForChat(chatId, (prev) => [...prev, assistantMsg]);
+          return; // skip title generation for image/code results
+        }
+
+        // Save assistant message (existing chat/voice flow)
         if (accumulated.trim()) {
           const assistantMsg = await saveMessage(chatId, {
             role: 'assistant',

@@ -1,25 +1,21 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// 🔥 Load from ENV only (no JSON file)
+const serviceAccount = {
+  type: 'service_account',
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  private_key: process.env.FIREBASE_PRIVATE_KEY
+    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+    : undefined,
+};
 
-let serviceAccount;
-try {
-  // Try loading from file first (for local dev)
-  serviceAccount = JSON.parse(
-    readFileSync(join(__dirname, '../../firebase/serviceAccountKey.json'), 'utf8')
-  );
-} catch {
-  // Fall back to env vars (for production)
-  serviceAccount = {
-    type: 'service_account',
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  };
-}
+// 🧠 Debug (remove later if you want)
+console.log("Firebase config check:", {
+  project_id: serviceAccount.project_id,
+  client_email: serviceAccount.client_email,
+  hasPrivateKey: !!serviceAccount.private_key,
+});
 
 if (!admin.apps.length) {
   admin.initializeApp({

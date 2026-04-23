@@ -81,6 +81,15 @@ export function streamChatMessage({ chatId, messages, onToken, onDone, onError }
               return;
             }
 
+            // ── NEW: structured result from image/code routes ──────────
+            // sendSSEResult() in multiModel.js sends { result: { type, ... } }
+            // We surface this through onDone so existing save/render logic
+            // receives it without any other changes needed.
+            if (parsed.result) {
+              onDone({ elapsed: 0, result: parsed.result });
+              return;
+            }
+
             if (parsed.token) {
               onToken(parsed.token);
             }

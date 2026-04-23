@@ -8,6 +8,8 @@ import {
 } from '../middleware/validate.js';
 import { streamChat, generateTitle } from '../services/ollama.js';
 import { verifyChatOwnership } from '../services/chatOwnership.js';
+// ── Multi-model routing (NEW — does not touch existing chat/memory logic) ──
+import { detectIntent, generateImage, generateCode, sendSSEResult } from '../services/multiModel.js';
 import { db } from '../firebase.js';
 
 const router = Router();
@@ -151,6 +153,89 @@ router.post('/chat', validateChatRequest, async (req, res) => {
     }
   }
 
+  // ── Intent detection → model routing (NEW) ───────────────────────────────
+  // Detect intent from the last user message BEFORE building the system prompt.
+  // Memory is NEVER passed to image/code routes — only to the chat route.
+  const rawUserText = lastUserMsg?.content ?? '';
+  const intent = detectIntent(rawUserText);
+  console.log(`[/chat] uid=${uid} intent="${intent}" msg="${rawUserText.slice(0, 60)}"`);
+
+  // ── IMAGE route ───────────────────────────────────────────────────────────
+  if (intent === 'image') {
+    const startTime = Date.now();
+    try {
+      const result = await generateImage(rawUserText);
+      sendSSEResult(res, result, Date.now() - startTime);
+    } catch (err) {
+      console.warn('[/chat] Image generation failed, falling back to chat:', err.message);
+      // Fallback: tell the user what happened via chat, then continue to streamChat below
+      // We do this by resetting intent — flow falls through to chat naturally
+      // but we can't re-enter the try after catch, so we inform via SSE directly:
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+      }
+      const fallbackMsg = `Sorry, image generation is temporarily unavailable (${err.message}). Try again later.`;
+      res.write(`data: ${JSON.stringify({ token: fallbackMsg })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, elapsed: Date.now() - startTime })}\n\n`);
+      res.end();
+    }
+    return;
+  }
+
+  // ── CODE route ────────────────────────────────────────────────────────────
+  if (intent === 'code') {
+    const startTime = Date.now();
+    try {
+      const result = await generateCode(rawUserText);
+      sendSSEResult(res, result, Date.now() - startTime);
+    } catch (err) {
+      console.warn('[/chat] Code generation failed, falling back to Ollama:', err.message);
+      // Fallback: use existing Ollama chat — continues below naturally
+      // We signal this gracefully: fall through into streamChat
+    }
+    // If we didn't return (i.e., generateCode threw and caught), fall through to streamChat
+    if (res.headersSent) return; // only return if we already sent something
+  }
+
+  // ── VOICE route ───────────────────────────────────────────────────────────
+  // Voice is handled entirely on the frontend (SpeechSynthesis API).
+  // Backend just returns the text with a type marker so the frontend can speak it.
+  if (intent === 'voice') {
+    const startTime = Date.now();
+    // Build system prompt for voice — still uses Ollama to get the text to speak
+    const systemPrompt = buildSystemPrompt(memoryEntries);
+    const safeMessages = messages.filter((m) => m.role !== 'system');
+    const finalMessages = [systemPrompt, ...safeMessages];
+
+    const controller = new AbortController();
+    req.on('close', () => controller.abort());
+
+    // Stream the response normally, then send a voice type marker at the end
+    try {
+      // Patch: inject a voice:true flag into the done event for the frontend to detect
+      await streamChat({
+        messages: finalMessages,
+        res,
+        signal: controller.signal,
+        meta: { type: 'voice' }, // ollama.js ignores unknown fields — safe to pass
+      });
+    } catch (err) {
+      console.error('[/chat] Voice streaming error:', err.message);
+      if (!res.headersSent) {
+        return res.status(502).json({ error: 'AIError', message: 'Voice response failed.' });
+      }
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ error: 'Stream interrupted.' })}\n\n`);
+        res.end();
+      }
+    }
+    return;
+  }
+
+  // ── DEFAULT: existing CHAT route (unchanged) ──────────────────────────────
   // Build system prompt — strips client system messages to prevent injection
   const systemPrompt = buildSystemPrompt(memoryEntries);
   const safeMessages = messages.filter((m) => m.role !== 'system');

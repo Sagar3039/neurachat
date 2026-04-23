@@ -3,10 +3,12 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import chatRoutes from './routes/chat.js';
-// import { warmupModel, startKeepAlivePing } from './services/ollama.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Security headers
 app.use(helmet());
@@ -42,8 +44,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'InternalError', message: 'An unexpected error occurred.' });
 });
 
-app.listen(PORT, async () => {
-  console.log(`✅ NeuraChat backend running on port ${PORT}`);
+// Start server with dynamic port binding
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`[${NODE_ENV.toUpperCase()}] 🚀 NeuraChat backend started`);
+  console.log(`   Server: http://0.0.0.0:${PORT}`);
+  console.log(`   Environment: ${NODE_ENV}`);
   console.log(`   Ollama: ${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}`);
   console.log(`   Model: ${process.env.OLLAMA_MODEL || 'llama3'}`);
   
